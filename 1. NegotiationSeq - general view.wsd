@@ -1,0 +1,65 @@
+@startuml
+
+skinparam sequence {
+    LifeLineBackgroundColor FFBBBB
+    GroupBackgroundColor    #BDE3FF
+    GroupBorderThickness    1
+    ReferenceBorderThickness 1
+    DividerBorderThickness 1
+    DividerBackgroundColor  #ffffe6
+    DividerFontStyle  normal
+    
+}
+
+title: Negotiation: general view
+
+'participant "FrontOffice" as FO
+'participant "HumanTask" as HT
+'participant "FO Notification" as NF
+participant "Handler" as Handler
+participant "LoanApplication" as LoanApp
+participant "NegotiationCommand" as NegComm
+'participant "LoanApplicationOffer" as RBP
+participant "RulesEngine" as RE
+'participant "OriginationCommand" as OrigComm
+
+RE <-] : маршрутизация
+RE -> NegComm++: processCommand(name=negotiation)
+'NegComm --> RE : ok
+
+== <i>формирование офферов (RBP) ==
+NegComm -> LoanApp : получить заявку
+alt lastOffersGenerationDate is null 
+	ref over NegComm : RBP	
+	NegComm -> RE : processEvent(recalulation, rbp.decision)
+else 
+	NegComm -> Handler : processСommand(loanDetails, callbackURL)
+end
+
+== <i>определение деталей кредита ==
+... ...
+Handler -> NegComm : processEvent(loanDetails, received)
+'NegComm --> Handler : ok
+
+
+== <i>обработка деталей кредита ==
+NegComm -> LoanApp : получить заявку
+alt techFlags['recalulation'] = 1
+	ref over NegComm : AML + RBP 
+	NegComm -> NegComm : сброс флага	
+	NegComm -> RE : processEvent(recalulation, rbp.decision)	
+else productContentsResult[] не пуст
+	NegComm -> RE : processEvent(negotiation, completed)	
+end
+deactivate NegComm	
+
+'Саша:
+' Neg(name=negotiation)
+' 1. ген RBP 
+' 2. HT(customerDecision)
+' 3. if(recalulation)
+' 3.1 AML-проверки 
+' 3.2 RBP-gen
+' 3.3 HT(customerDecision)
+
+@enduml

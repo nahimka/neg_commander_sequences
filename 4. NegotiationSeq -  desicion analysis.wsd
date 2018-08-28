@@ -1,0 +1,34 @@
+@startuml
+
+skinparam sequence {
+    LifeLineBackgroundColor FFBBBB
+    GroupBackgroundColor    #BDE3FF
+    GroupBorderThickness    1
+    ReferenceBorderThickness 1
+}
+
+title Negotiation: desicion analysis
+
+'actor "Operator" as Operator
+'participant "FrontOffice" as Front
+'participant "HumanTask" as HTask
+'participant "Handler" as Handler
+'participant "LoanApplication" as LoanApp
+participant "RulesEngine" as RE
+participant "NegotiationCommand" as NegComm
+'participant "FO Notification" as Notify
+
+[-> NegComm : processEvent(customerDesicion, received)
+activate NegComm
+NegComm -> NegComm : проверить флаг aml
+NegComm -> NegComm : проверить флаг рекалькуляции
+alt =1
+	ref over NegComm : rbp
+else =0
+	NegComm -> RE ++: processEvent(Negotiation, completed)
+	RE --> NegComm : ok
+end 
+deactivate NegComm
+deactivate RE
+
+@enduml

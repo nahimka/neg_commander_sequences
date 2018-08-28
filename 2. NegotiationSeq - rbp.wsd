@@ -1,0 +1,52 @@
+@startuml
+
+skinparam sequence {
+    LifeLineBackgroundColor FFBBBB
+    GroupBackgroundColor    #BDE3FF
+    GroupBorderThickness    1
+    ReferenceBorderThickness 1
+    
+}
+
+title: Negotiation: RBP
+
+'participant "FrontOffice" as FO
+'participant "HumanTask" as HT
+'participant "FO Notification" as NF
+participant "RulesEngine" as RE
+participant "NegotiationCommand" as NegComm
+participant "LoanApplicationOffer" as RBP
+participant "LoanApplication" as LoanApp
+'participant "Handler" as Hndl
+
+activate RE
+[-> RE 
+RE -> NegComm ++: <b>RBP</b> \nprocessCommand(name = negotiation)
+NegComm --> RE : ok
+deactivate RE
+group RBP
+
+NegComm -> RBP ++: <b>Сформировать офферы</b> \nPOST /loan_application_offers 
+RBP -> RBP :  call RBP-service
+RBP -> LoanApp : сохранение \nрезультата RBP
+RBP -> NegComm --: http status: 200
+NegComm -> LoanApp ++: GET decisions
+LoanApp --> NegComm : decisions
+deactivate LoanApp
+NegComm -> RE ++: <b>Маршуртизация по результатам RBP</b> \nprocessEvent(name='recalculation', decision)
+RE --> NegComm : ok
+deactivate NegComm
+end
+
+alt decision == 'bad'
+ RE -> RE : call Terminator
+else decision == 'good'
+ RE -> NegComm ++: <b>Определить детали кредита</b> \nprocessCommand(customerDesicion)
+ NegComm --> RE : ok
+end
+deactivate RE
+
+ref over NegComm : CustomerDecision
+'NegComm -> Hndl : processCommand(name = 'customerDecision')
+
+@enduml

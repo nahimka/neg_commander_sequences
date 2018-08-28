@@ -1,0 +1,106 @@
+@startuml
+
+skinparam sequence {
+    LifeLineBackgroundColor FFBBBB
+    GroupBackgroundColor    #BDE3FF
+    GroupBorderThickness    1
+    ReferenceBorderThickness 1
+    
+}
+
+title Negotiation: customer desicion
+
+actor "Operator" as Operator
+participant "FrontOffice" as Front
+participant "HumanTask" as HTask
+participant "Handler" as Handler
+participant "LoanApplication" as LoanApp
+participant "RulesEngine" as RE
+participant "NegotiationCommand" as NegComm
+participant "FO Notification" as Notify
+
+Front -> Front ++: ожидание задачи
+... ...
+RE -> NegComm ++: <b>Определить детали кредита</b> \n processCommand(customerDesicion)
+NegComm --> RE : ok
+NegComm -> LoanApp : обновление статуса
+NegComm -> Handler ++: <b>Определить детали кредита</b> \n processСommand(customerDesicion, callbackURL)
+Handler -> HTask ++: <b>задача "Определить детали кредита"</b> \n createHumanTask(customerDesicion)
+HTask --> Handler : имя задачи
+deactivate HTask
+Handler --> NegComm : имя задачи
+deactivate Handler
+NegComm -> Notify ++: createNotification(appId, \ncustomerDesicion)
+deactivate NegComm
+Notify -> Front : оповещение(customerDesicion, appId)
+deactivate Notify
+Front -> HTask ++: блокировка(customerDesicion, appId)
+HTask -> HTask : авторизация
+HTask -> HTask : блокировка
+HTask --> Front : ok
+deactivate HTask
+Front -> Operator : показ формы \nвыбора предложений
+deactivate Front
+note left of Front : !!Не понимаю что делать в этом месте \n в плане блокировки: может
+
+Operator -> Front : открытые заявки
+activate Front
+
+opt Дата RBP не равна текущей дате
+	Front -> Front : Toster: "wait, please"
+	Front -> HTask ++: <b>проверить задачу</b> \n postHumanTasksAction(customerDesicion, verify)
+	HTask -> Handler ++: <b>проверить задачу</b> \n processHumanTaskResult(customerDesicion, verify)
+	Handler -> Handler : проверка деталей кредита
+	Handler -> Handler : флаг recalculcation = 1
+	Handler -> LoanApp : обновление заявки
+	Handler -> HTask : http status: 200, action = verify	
+	deactivate Handler
+	HTask -> Front : http status: 200
+	deactivate HTask	
+	opt recalculcation = 1
+		Front -> Front : Toster: "Обновление офферов"
+		group AML-проверки
+			Front -> Front : вызов сервисов CheckTerrorist, \n CheckUnitedNationsTerrorist	
+		end
+		group Рекалькуляция
+			Front -> Front : вызов сервиса RBP	
+		end	
+	end
+end
+Front -> Operator : показ формы \nвыбора предложений 
+note left of Front : Предложений может не быть \n -> завершение заявки?
+deactivate Front
+
+Operator -> Front ++: выбор оффера
+Front -> HTask ++: <b>отправка задачи</b> \n postHumanTasksAction(customerDesicion, send)	
+HTask -> Handler ++: <b>отправка задачи</b> \n processHumanTaskResult(customerDesicion, send)	
+Handler -> Handler : проверка деталей кредита
+Handler -> LoanApp : обновление заявки
+Handler -> Handler : поиск callBackUrl
+alt callBackURL найден
+	
+	Handler -> NegComm : <b>предложение выбрано</b> \n processEvent(customerDesicion, received)
+	activate NegComm
+	NegComm --> Handler : ok
+	Handler --> HTask : ok
+	HTask -> HTask : <b>удаление задачи</b> \n DELETE /human_tasks/{taskId}
+
+else  callBackURL не найден
+	
+	Handler -> RE : <b>предложение выбрано</b> \n processEvent(customerDesicion, received)
+	activate RE	
+	RE --> Handler : ok
+	RE -> NegComm : <b>Обработать решение</b> \n processCommand(DesicionAnalysis)
+	NegComm --> RE : ok
+	Handler --> HTask : ok
+	HTask -> HTask : <b>удаление задачи</b> \n DELETE /human_tasks/{taskId}
+end
+ref over NegComm : Desicion Analysis
+
+deactivate RE
+deactivate Handler
+HTask --> Front : ok
+deactivate HTask
+Front -> Front : ожидание задачи
+... ...
+@enduml
